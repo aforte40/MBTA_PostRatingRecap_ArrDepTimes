@@ -1,10 +1,4 @@
-
 *.txt
-<<<<<<< Updated upstream
 *.csv
 *.xlsx
-=======
-*.xlsx
-*.csv
->>>>>>> Stashed changes
 *.zip
