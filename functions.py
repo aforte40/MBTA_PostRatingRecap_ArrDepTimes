@@ -41,13 +41,15 @@ def import_calendar_csv(foldername, filename):
 def reduce_df_size(df):
     #Drop headway and scheduled_headway columns
     df = df.drop(columns=['headway', 'scheduled_headway'])
+    # Remove rows whose point_type is Midpoint
+    df = df[df['point_type'] != 'Midpoint']
     # Filter the df to only include the first and last stops of each half_trip_id
-    end_points_df = (df.groupby
-                        (['half_trip_id'], observed=True, as_index=False)
-                        ['time_point_order']
-                        .transform('max') #with transform I can get all the max occurrences while also preserving their original row index
-                    )
-    df = df.loc[(df.loc[:,'time_point_order'] == end_points_df)|(df.loc[:,'time_point_order'] == 1)]
+#    end_points_df = (df.groupby
+#                        (['half_trip_id'], observed=True, as_index=False)
+#                        ['time_point_order']
+#                        .transform('max') #with transform I can get all the max occurrences while also preserving their original row index
+#                    )
+#    df = df.loc[(df.loc[:,'time_point_order'] == end_points_df)|(df.loc[:,'time_point_order'] == 1)]
     return df
 
 def adjust_adt_df_settings(df, routes, feed_info_start_date, feed_info_end_date):
@@ -147,7 +149,7 @@ def get_gtfs_post_rating_txt_files(folderpath, list_of_txt_files, gtfs_dtypes):
     stop_times = stop_times.rename(columns={'departure_time': 'scheduled'})
     stops = gtfsSchedule['stops']
     trips = gtfsSchedule['trips']
-    # Filter routes and trips to only include bus routes, i.e., those whose rotue_id is a string of digits
+    # Filter routes and trips to only include bus routes, i.e., those whose route_id is a string of digits
     routes, trips = routes[routes['route_id'].str.isdigit()], trips[trips['route_id'].str.isdigit()]
     # Convert datetime strings to proper datetime objects
     calendar['start_date'] = pd.to_datetime(calendar['start_date'], format='%Y%m%d')
