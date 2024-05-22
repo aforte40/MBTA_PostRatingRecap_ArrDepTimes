@@ -2,7 +2,7 @@ import pandas as pd
 
 gtfs_cols = {
     'calendar': {
-    'service_id': 'category',
+    'service_id': 'string',
     'monday': bool,
     'tuesday': bool,
     'wednesday': bool,
@@ -15,7 +15,7 @@ gtfs_cols = {
     },
 
     'calendar_attributes':{
-    'service_id': 'category',
+    'service_id': 'string',
     'service_description': 'category',
     'service_schedule_name': 'category',
     'service_schedule_type': 'category',
@@ -26,7 +26,7 @@ gtfs_cols = {
     },
 
     'calendar_dates':{
-    'service_id': 'category',
+    'service_id': 'string',
     'date': 'string',
     'exception_type': pd.Int8Dtype(),
     'holiday_name': 'category'
@@ -44,9 +44,9 @@ gtfs_cols = {
     },
 
     'routes':{
-    'route_id': 'category',
+    'route_id': 'string',
     'agency_id': 'category',
-    'route_short_name': 'category',
+    'route_short_name': 'string',
     'route_long_name': 'category',
     'route_desc': 'category',
     'route_type': 'category',
@@ -60,7 +60,7 @@ gtfs_cols = {
     },
 
     'stop_times':{
-    'trip_id': 'category',
+    'trip_id': 'string',
     'arrival_time': 'string',
     'departure_time': 'string',
     'stop_id': 'category',
@@ -75,7 +75,7 @@ gtfs_cols = {
     },
 
     'stops':{
-    'stop_id': 'category',
+    'stop_id': 'string',
     'stop_code': 'category',
     'stop_name': 'category',
     'stop_desc': 'category',
@@ -108,8 +108,8 @@ gtfs_cols = {
     },
 
     'trips':{
-    'route_id': 'category',
-    'service_id': 'category',
+    'route_id': 'string',
+    'service_id': 'string',
     'trip_id': 'category',
     'trip_headsign': 'category',
     'trip_short_name': 'category',
@@ -127,8 +127,8 @@ adt_dtype_map = {
     "service_date": "string",
     "route_id": "category",
     "direction_id": "category",
-    "half_trip_id": "category",
-    "stop_id": "string",
+    "half_trip_id": "string",
+    "stop_id": "category",
     "time_point_id": "category", 
     "time_point_order": pd.Int16Dtype(),
     "point_type": "category", 
@@ -138,3 +138,20 @@ adt_dtype_map = {
     "scheduled_headway": pd.Int32Dtype(),
     "headway": pd.Int32Dtype()
     }
+
+# Non-Numeric routes
+route_id_mapping = {
+    "SL1": '741', 
+    "SL2": '742',
+    "SL3": '743',
+    "SL4": '751',
+    "SL5": '749',
+    "SLW": '746',
+    'CT2': '747',
+    'CT3': '708',
+    '32/33': '3233',
+    '40/50': '4050',
+    '62/76': '627',
+    '89/93': '8993',
+    '441/442': '441442'
+}
