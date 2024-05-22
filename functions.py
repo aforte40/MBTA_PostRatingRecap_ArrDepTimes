@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import datetime as dt
 import calendar
+from dtype_dictionaries import route_id_mapping
 
 def split_multiple_block_id(df):
     # 1. Extract rows with multiple block_id substrings and save their indexes
@@ -65,14 +66,12 @@ def adjust_adt_df_settings(df, routes, feed_info_start_date, feed_info_end_date)
     arr_dep_df['direction_id'] = arr_dep_df['direction_id'].cat.rename_categories({'Inbound': 1, 'Outbound': 0})
     # Replace nan entries in the actual column with the scheduled values
     arr_dep_df.loc[:,'actual'] = arr_dep_df.loc[:,'actual'].fillna(arr_dep_df.loc[:,'scheduled'])
-    # Use the routes file to replace route_ids that are not numerical with their numerical equivalents (eg SL-1 with 701)
-    arr_dep_df = pd.merge(arr_dep_df, routes[['route_id', 'route_short_name']], on='route_id')
-    # Drop the original route_id column, and rename the route_short_name column to route_id
-    arr_dep_df = arr_dep_df.drop(columns=['route_id'])
-    arr_dep_df = arr_dep_df.rename(columns={'route_short_name': 'route_id'})
-    # Move the route_id column to the front
-    arr_dep_df = arr_dep_df[['route_id'] + [col for col in arr_dep_df.columns if col != 'route_id']]
-    # Add block_id and service_id columns as categories
+    # Strip undesired characters in the strings of route_ids
+    arr_dep_df['route_id'] = arr_dep_df['route_id'].str.lstrip('0')
+    arr_dep_df['route_id'] = arr_dep_df['route_id'].str.rstrip('_')
+    # Replace values in the route_id column with the corresponding dict.values() in route_id_mapping
+    arr_dep_df['route_id'] = arr_dep_df['route_id'].replace(route_id_mapping)
+
     arr_dep_df['block_id'] = ''
     arr_dep_df['service_id'] = ''   
     return arr_dep_df
@@ -138,12 +137,15 @@ def get_gtfs_post_rating_txt_files(folderpath, list_of_txt_files, gtfs_dtypes):
     feed_info = gtfsSchedule['feed_info']
     routes = gtfsSchedule['routes']
     stop_times = gtfsSchedule['stop_times']
-    end_points_df = (stop_times.groupby
-                        (['trip_id'], observed=True, as_index=False)
-                        ['stop_sequence']
-                        .transform('max') #with transform I can get all the max occurrences while also preserving their original row index
-                    )
-    stop_times = stop_times.loc[(stop_times.loc[:,'stop_sequence'] == end_points_df)|(stop_times.loc[:,'stop_sequence'] == 1)]
+    grouped = stop_times.groupby('trip_id')
+    #stop_times = stop_times.loc[(end_points_df)|(stop_times.loc[:,'stop_sequence'] == 1)]
+    # Fetch the indexes of the first and last rows of each group
+    first_indices = grouped.head(1).index
+    last_indices = grouped.tail(1).index
+    # Combine the indices
+    combined_indices = first_indices.union(last_indices)
+    # Extract the rows using the combined indices
+    stop_times = stop_times.loc[combined_indices]
     # Drop arrival_time and rename departure_time to scheduled
     stop_times = stop_times.drop(columns=['arrival_time'])
     stop_times = stop_times.rename(columns={'departure_time': 'scheduled'})
