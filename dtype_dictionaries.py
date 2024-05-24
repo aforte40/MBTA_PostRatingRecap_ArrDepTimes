@@ -2,7 +2,7 @@ import pandas as pd
 
 gtfs_cols = {
     'calendar': {
-    'service_id': 'string',
+    'service_id': 'category',
     'monday': bool,
     'tuesday': bool,
     'wednesday': bool,
@@ -15,7 +15,7 @@ gtfs_cols = {
     },
 
     'calendar_attributes':{
-    'service_id': 'string',
+    'service_id': 'category',
     'service_description': 'category',
     'service_schedule_name': 'category',
     'service_schedule_type': 'category',
@@ -26,7 +26,7 @@ gtfs_cols = {
     },
 
     'calendar_dates':{
-    'service_id': 'string',
+    'service_id': 'category',
     'date': 'string',
     'exception_type': pd.Int8Dtype(),
     'holiday_name': 'category'
@@ -44,7 +44,7 @@ gtfs_cols = {
     },
 
     'routes':{
-    'route_id': 'string',
+    'route_id': 'category',
     'agency_id': 'category',
     'route_short_name': 'string',
     'route_long_name': 'category',
@@ -108,8 +108,8 @@ gtfs_cols = {
     },
 
     'trips':{
-    'route_id': 'string',
-    'service_id': 'string',
+    'route_id': 'category',
+    'service_id': 'category',
     'trip_id': 'category',
     'trip_headsign': 'category',
     'trip_short_name': 'category',
