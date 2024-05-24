@@ -186,26 +186,117 @@ def parse_calendar_file(gtfs_calendar):
                 calendar_data[date].add(service_id)
     return calendar_data
 
-def parse_calendar_dates_file(gtfs_calendar_dates):
+def parse_calendar_dates_file(gtfs_calendar_dates, calendar_data_dict):
 
-    calendar_dates_data = {}
     for index, row in gtfs_calendar_dates.iterrows():
         service_id = row['service_id']
         date = row['date']
         exception_type = row['exception_type']
-        if date not in calendar_dates_data:
-            calendar_dates_data[date] = set()
+        if date not in calendar_data_dict:
+            calendar_data_dict[date] = set()
         if exception_type == 1:
-            calendar_dates_data[date].add(service_id)
+            calendar_data_dict[date].add(service_id)
         elif exception_type == 2:
-            if service_id in calendar_dates_data[date]:
-                calendar_dates_data[date].remove(service_id)
-    return calendar_dates_data
+            if service_id in calendar_data_dict[date]:
+                calendar_data_dict[date].remove(service_id)
+    return calendar_data_dict
 
-def generate_schedule(feed_start_date, feed_end_date, calendar_data, calendar_dates_data):
+def generate_schedule(feed_start_date, feed_end_date, calendar_data):
     schedule = []
     for date in pd.date_range(feed_start_date, feed_end_date):
         day_of_week = date.strftime('%A')
-        service_ids = calendar_data.get(date, set()) | calendar_dates_data.get(date, set())
+        service_ids = calendar_data.get(date, set()) #| calendar_dates_data.get(date, set())
         schedule.append((date, day_of_week, service_ids))
     return schedule
+
+#---------------------------------#
+# Functions to map realtime data to gtfs schedule to assign block_ids and service_ids
+def map_realtime_to_gtfs_schedule(df, start_date, end_date, calendar_schedule, gtfs_schedule):
+    
+    export_df = df.copy()
+    unmatched_names = []
+    unmatched_groups = []
+    # Also create a destination folder: this will be named as mapped_realtime_data_start_date_end_date.csv
+    # Create a folder to store the csv files
+    foldername = 'mapped_realtime_data' + start_date.strftime('%Y%m%d') + '_' + end_date.strftime('%Y%m%d')
+    if not os.path.exists(foldername):
+        os.makedirs(foldername)
+
+    route_ids = df['route_id'].unique()
+    calendar_df = pd.DataFrame(calendar_schedule, columns=['date', 'day_of_week', 'service_ids'])
+    for route in route_ids:
+        print(f'Processing route {route}...')
+        # Fetch subset of the ArrivalDepartureTimes dataframe for the current route and stop_sequence ==1
+        adt_route = df.loc[(df['route_id'] == route) & (df['point_type'] == 'Startpoint')]
+
+        # Print the feed_start_date and feed_end_date
+        print(f'Feed start date: {start_date}, Feed end date: {end_date}')
+        #Filter adt_df to keep only the rows that lie within the feed_start_date and feed_end_date range
+        date_filter = (adt_route['service_date'] >= start_date) & (adt_route['service_date'] <= end_date)
+        adt_date_filtered = adt_route[date_filter]
+
+        # Fetch subset of the GTFS schedule dataframe for the current route
+        schedule_route = gtfs_schedule[(gtfs_schedule['route_id'] == route)&(gtfs_schedule['stop_sequence'] == 1)]
+
+        adt_grouped = adt_date_filtered.groupby(['direction_id', 'scheduled'], observed=True)
+        schedule_grouped = schedule_route.groupby(['direction_id', 'scheduled'], observed=True)
+    
+        for name, group in adt_grouped:
+            # print the group name
+            #print(f'{name}...')
+            if name in schedule_grouped.groups:
+                # extract the corresponding group from schedule_route10_grouped
+                schedule_group = schedule_grouped.get_group(name)
+                schedule_services = set(schedule_group['service_id'])
+                # This is a series whose index is the service_id and the values are the block_ids
+                schedule_service_block_ids = schedule_group.groupby(['service_id'], observed=True, as_index=False)['block_id'].apply(list)
+
+                # extract the subset of the calendar_df that matches the service_date
+                service_days_orig = calendar_df.loc[calendar_df.date.isin(group.service_date)]
+
+                # loop through the service_days
+                # Step 1: Compute the intersections
+                service_days = service_days_orig.copy()
+                service_days.loc[:,'adt_service_ids'] = service_days['service_ids'].apply(lambda ids: schedule_services.intersection(ids))
+                service_days.loc[:,'adt_service_ids_str'] = service_days['adt_service_ids'].apply(lambda ids: ', '.join(ids))
+
+                # Step 2: Merge service_days with group on date 
+                merged = pd.merge(group, service_days, left_on='service_date', right_on='date')
+                # Step 3: Merge the merged dataframe with schedule_service_block_ids and keep the index of the group
+                merged = pd.merge(merged, schedule_service_block_ids, left_on='adt_service_ids_str', right_on='service_id')
+                # Print the name of the group if the length of the two indexes is different to spot potential errors
+                if len(merged.index) != len(group.index):
+                    print(f'Route: {route}\n Length of indexes for group {name} is different: {len(merged.index)} vs {len(group.index)}')
+                    # Drop group rows whose service_date is not in the service_date of merged
+                    group = group[group['service_date'].isin(merged['service_date'])]
+
+                merged = merged.set_index(group.index)
+                # Step 4: recast the service_id and block_id in the adt_df
+                #df.loc[merged.index, 'service_id'] = merged['service_id'] 
+                #df.loc[merged.index, 'block_id'] = merged['block_id']
+                df.loc[merged.index, 'service_id'] = merged['service_id_y'] 
+                df.loc[merged.index, 'block_id'] = merged['block_id_y']
+
+            else:
+                #print(f'No match found for group {name}...')
+                unmatched_names.append(name)
+                unmatched_groups.append(group)
+
+        export_df = add_info_to_endpoint_rows(df.loc[df.route_id==route])
+
+        # Save the route-specific df to a csv file
+        export_filename = route + '.csv'
+        filepath = os.path.join(foldername, export_filename)
+        export_df.to_csv(filepath, index=False)
+        # Keep the index in the exported csv file and its name half_trip_id
+    return df
+
+def add_info_to_endpoint_rows(df):
+    endpoint_df = df.loc[(df['point_type'] == 'Endpoint')]
+    # Drop block_id and service_id columns
+    endpoint_df = endpoint_df.drop(columns=['block_id', 'service_id'])
+    startpoint_df = df.loc[(df['point_type'] == 'Startpoint')]
+    endpoint_df = endpoint_df.merge(startpoint_df[['half_trip_id','block_id', 'service_id']], left_on='half_trip_id', right_on='half_trip_id')
+    # Concatenate the two dataframes horizontally
+    final_df = pd.concat([startpoint_df,endpoint_df])
+    return final_df
