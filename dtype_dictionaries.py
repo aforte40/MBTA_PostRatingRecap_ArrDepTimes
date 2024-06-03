@@ -122,7 +122,7 @@ gtfs_cols = {
     'bikes_allowed': 'category'}
 }
 
-#Arrival adn Departure time columns
+#Arrival and Departure time columns
 adt_dtype_map = {
     "service_date": "string",
     "route_id": "category",
@@ -137,6 +137,22 @@ adt_dtype_map = {
     "actual": "string",  # Consider converting to datetime later
     "scheduled_headway": pd.Int32Dtype(),
     "headway": pd.Int32Dtype()
+    }
+
+#csv files for layover times columns
+layover_dtype_map = {
+    "service_date": "string",
+    "route_id": "category",
+    "direction_id": "category",
+    "half_trip_id": "string",
+    "stop_id": "category",
+    "time_point_id": "category", 
+    "time_point_order": pd.Int16Dtype(),
+    "point_type": "category", 
+    "scheduled": "string",  # Consider converting to datetime later
+    "actual": "string",  # Consider converting to datetime later
+    "block_id": "list",
+    "service_id": "category",
     }
 
 # Non-Numeric routes

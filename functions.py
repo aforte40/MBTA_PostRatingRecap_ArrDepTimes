@@ -116,6 +116,12 @@ def handle_24h_time(series):
                  .str.replace(r'^29', '05', regex=True) \
                  .str.replace(r'^30', '06', regex=True) \
 
+# Function to convert time strings to seconds after midnight
+def time_to_seconds(empty_series):
+    hours, minutes, seconds = map(int, empty_series.split(':'))
+    seconds_series = hours * 3600 + minutes * 60 + seconds
+    return seconds_series
+
 # Parse datetime strings to datetime objects
 def parse_datetime_strings(df):
     df['scheduled'] = handle_24h_time(df['scheduled'])
@@ -149,6 +155,9 @@ def get_gtfs_post_rating_txt_files(folderpath, list_of_txt_files, gtfs_dtypes):
     # Drop arrival_time and rename departure_time to scheduled
     stop_times = stop_times.drop(columns=['arrival_time'])
     stop_times = stop_times.rename(columns={'departure_time': 'scheduled'})
+    # Time strings relating to timestamps after midnight but during the same service day start with 24:, 25:, etc. 
+    # To ensure sorting is done properly, I will convert the strings in an equivalent amount of seconds
+    #stop_times['seconds'] = stop_times['scheduled'].apply(time_to_seconds)
     stops = gtfsSchedule['stops']
     trips = gtfsSchedule['trips']
     # Filter routes and trips to only include bus routes, i.e., those whose route_id is a string of digits
@@ -248,6 +257,8 @@ def map_realtime_to_gtfs_schedule(df, start_date, end_date, calendar_schedule, g
                 # extract the corresponding group from schedule_route10_grouped
                 schedule_group = schedule_grouped.get_group(name)
                 schedule_services = set(schedule_group['service_id'])
+                # Add the column 'seconds' to the group (all the seconds values in schedule_group are the same as they are actually the grouping variable)
+                #group['seconds'] = schedule_group['seconds'].values[0]
                 # This is a series whose index is the service_id and the values are the block_ids
                 schedule_service_block_ids = schedule_group.groupby(['service_id'], observed=True, as_index=False)['block_id'].apply(list)
 
@@ -276,6 +287,7 @@ def map_realtime_to_gtfs_schedule(df, start_date, end_date, calendar_schedule, g
                 #df.loc[merged.index, 'block_id'] = merged['block_id']
                 df.loc[merged.index, 'service_id'] = merged['service_id_y'] 
                 df.loc[merged.index, 'block_id'] = merged['block_id_y']
+                #df.loc[merged.index, 'seconds'] = merged['seconds']
 
             else:
                 #print(f'No match found for group {name}...')
