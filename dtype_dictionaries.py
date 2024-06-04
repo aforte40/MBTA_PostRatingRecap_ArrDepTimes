@@ -151,7 +151,7 @@ layover_dtype_map = {
     "point_type": "category", 
     "scheduled": "string",  # Consider converting to datetime later
     "actual": "string",  # Consider converting to datetime later
-    "block_id": "list",
+    "block_id": "category",
     "service_id": "category",
     }
 
