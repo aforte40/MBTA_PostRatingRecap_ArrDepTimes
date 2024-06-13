@@ -146,13 +146,13 @@ layover_dtype_map = {
     "direction_id": "category",
     "half_trip_id": "string",
     "stop_id": "category",
-    "time_point_id": "category", 
-    "time_point_order": pd.Int16Dtype(),
+    #"time_point_id": "category", 
+    #"time_point_order": pd.Int16Dtype(),
     "point_type": "category", 
     "scheduled": "string",  # Consider converting to datetime later
     "actual": "string",  # Consider converting to datetime later
     "block_id": "category",
-    "service_id": "category",
+    #"service_id": "category",
     }
 
 # Non-Numeric routes
