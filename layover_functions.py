@@ -86,92 +86,93 @@ def cluster_stop_id_combinations(layover_dataframe):
 
     # Step 2: Merge Startpoints and Endpoints
     start_end_points = pd.merge(startpoints, endpoints, on='half_trip_id', how='inner')
-    
-    # Debug: View the start and end points to ensure correctness
-    #print("Start and End Points:")
-    #print(start_end_points)
-    
+
     # Step 3: Create Cluster Column
     start_end_points['cluster'] = start_end_points.apply(
     lambda row: frozenset([row['start_stop_id'], row['end_stop_id']]), axis=1)
 
-    # Debug: View the clusters created to ensure correctness
-    #print("Clusters Created:")
-    #print(start_end_points)
-
     # Step 4: Merge Cluster Column back to Original DataFrame
     layover_dataframe = pd.merge(layover_dataframe, start_end_points[['half_trip_id', 'cluster']], on='half_trip_id', how='left')
-    # Debug: View the final dataframe to ensure correctness
-    #print("Final DataFrame:")
-    #print(layover_dataframe)
-    # Optional Step 5: Encode Clusters (if necessary)
-    # This step encodes the 'cluster' column to a float with the format 'startstop.endstop'
-    #layover_dataframe['cluster_encoded'] = layover_dataframe['cluster'].apply(lambda x: float(x.replace('_', '.')))
+   
     return layover_dataframe
 
 
 # Plot statistical distribution of layover times
-def plot_layover_distribution(layover_dataframe, start_date, end_date):
+def plot_layover_distribution(layover_dataframe, start_date, end_date, export_folder):
     # Group data by route_id and cluster
     #grouped = layover2.groupby(['route_id', 'cluster'], observed=True)
     grouped = layover_dataframe.loc[layover_dataframe.actual_layover <= 60].groupby(['route_id', 'cluster'], observed=True)
     # Plotting
     for (route_id, cluster), group in grouped:
-        # Revome both nan and zeros
-        layover_times = group['actual_layover'].dropna()
-        layover_times = layover_times[layover_times != 0]
-        if len(layover_times) == 0:
-            continue
-        
-        mean_layover = layover_times.mean()
-        std_layover = layover_times.std()
-        
-        # Create the plot
-        fig, ax1 = plt.subplots(figsize=(10, 6))
-        ax2 = ax1.twinx()
-        nbins = 60
-        # Plot vertical bands for expected value ± 1 std deviation
-        #plt.axvspan(mean_layover - std_layover, mean_layover + std_layover, color='yellow', alpha=0.3)
-        
-        #Plot histogram of layover times distribution
-        sns.histplot(layover_times, bins=nbins, color='cyan', label='Histogram', ax=ax1)
-        sns.kdeplot(layover_times, color='blue', label='KDE', ax=ax2)
-        # Add grid for histogram
-        ax1.grid(axis='x', linestyle='--', alpha=0.5)
-        # Plot vertical line for the value with the highest frequency
-        #plt.axvline(layover_times.mode().values[0], color='green', linestyle='--', linewidth=1)   
-        
-        # Annotate with text box
-        in_range_count = ((layover_times >= (mean_layover - std_layover)) & 
-                        (layover_times <= (mean_layover + std_layover))).sum()
-        stats_text = (f"Service week: {start_date.date()} - {end_date.date()}\n"
-                    f"Expected value (mean): {mean_layover:.2f} min\n"
-                    f"Standard deviation: {std_layover:.2f} min\n"
-                    f"Evaluated trips: {len(layover_times)}\n"
-                    f"Entries within ±1 std dev: {in_range_count}")
-        
-        plt.gca().text(0.95, 0.95, stats_text, horizontalalignment='right', verticalalignment='top', 
-                    transform=plt.gca().transAxes, bbox=dict(facecolor='white', alpha=0.5))
-        
-        # Show only positive x values
-        ax1.set_xlim(left=0, right=60)
-        # Set ticks for ax1 every 5 minutes
-        ax1.set_xticks(np.arange(0, layover_times.max() + 5, 5))
-        # display ax2 line and labels in blue
-        ax2.spines['right'].set_color('blue')
-        ax2.tick_params(axis='y', colors='blue')
+        for stop_id in group['stop_id'].unique():
+            stop_group = group[group['stop_id'] == stop_id]
 
-        # Plot title
-        figtitle = f'Route {route_id} - Cluster {sorted(list(cluster))}'
-        plt.title(figtitle)
-        ax1.set_xlabel('Actual Layover Time [min]')
-        ax1.set_ylabel('Number of trips')
-        ax2.set_ylabel('KDE', color = 'blue')  # Label for the secondary y-axis
-        
-        # Show the plot
-        #plt.show()
+            # Revome both nan and zeros
+            layover_times = stop_group['actual_layover'].dropna()
+            layover_times = layover_times[layover_times != 0]
+            if len(layover_times) == 0:
+                continue
+            
+            mean_layover = layover_times.mean()
+            std_layover = layover_times.std()
+            
+            # Compute the average scheduled layover time
+            avg_scheduled_layover = stop_group.loc[(stop_group.scheduled_layover != 0)&(stop_group.scheduled_layover < 60), 'scheduled_layover'].mean()
+            
+            # Create the plot
+            _, ax1 = plt.subplots(figsize=(10, 6))
+            ax2 = ax1.twinx()
+            nbins = 60
+            # Plot vertical line for average actual layover
+            plt.axvline(mean_layover, color='red', linestyle='--', label='Avg actual layover')
 
-        # Export routine
-        export_folder = 'StatisticsPlots_2023'
-        export_path = os.path.join(export_folder, figtitle + '.png')
-        plt.savefig(export_path)
+            # Plot vertical line for average scheduled layover
+            plt.axvline(avg_scheduled_layover, color='green', linestyle='--', label='Avg scheduled layover')
+
+            #Plot histogram of layover times distribution
+            sns.histplot(layover_times, bins=nbins, color='cyan', label='Histogram', ax=ax1)
+            sns.kdeplot(layover_times, color='blue', label='KDE', ax=ax2, warn_singular=False)
+            # Add grid for histogram
+            ax1.grid(axis='x', linestyle='--', alpha=0.5)
+            # Plot vertical line for the value with the highest frequency
+            #plt.axvline(layover_times.mode().values[0], color='green', linestyle='--', linewidth=1)   
+            
+            # Annotate with text box
+            in_range_count = ((layover_times >= (mean_layover - std_layover)) & 
+                            (layover_times <= (mean_layover + std_layover))).sum()
+            stats_text = (f"Service week: {start_date.date()} - {end_date.date()}\n"
+                        f"Expected value (mean): {mean_layover:.2f} min\n"
+                        f"Standard deviation: {std_layover:.2f} min\n"
+                        f"Evaluated trips: {len(layover_times)}\n"
+                        f"Entries within ±1 std dev: {in_range_count}")
+            
+            plt.gca().text(0.95, 0.95, stats_text, horizontalalignment='right', verticalalignment='top', 
+                        transform=plt.gca().transAxes, bbox=dict(facecolor='white', alpha=0.5))
+            
+            # Show only positive x values
+            ax1.set_xlim(left=0, right=60)
+            # Set ticks for ax1 every minute, display numbers every 5 minutes
+            ax1.set_xticks(np.arange(0, 61, 1), minor=True)
+            ax1.set_xticks(np.arange(0, 61, 5))
+            ax1.set_xticklabels(np.arange(0, 61, 5))
+                        
+            # display ax2 line and labels in blue
+            ax2.spines['right'].set_color('blue')
+            ax2.tick_params(axis='y', colors='blue')
+
+            # Plot title
+            figtitle = f'Route {route_id} - Cluster {sorted(list(cluster))} - Stop {stop_id}'
+            plt.title(figtitle)
+            ax1.set_xlabel('Actual Layover Time [min]')
+            ax1.set_ylabel('Number of trips')
+            ax2.set_ylabel('KDE', color = 'blue')  # Label for the secondary y-axis
+
+            # Add legend
+            plt.legend(loc='center right')
+            # Show the plot
+            #plt.show()
+
+            # Export routine
+            export_path = os.path.join(export_folder, figtitle + '.png')
+            plt.savefig(export_path)
+            plt.close()
